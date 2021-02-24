@@ -2,6 +2,7 @@ package merged_fs
 
 import (
 	"archive/zip"
+	"io"
 	"io/fs"
 	"os"
 	"testing"
@@ -33,9 +34,6 @@ func TestMergedFS(t *testing.T) {
 	zip2 := openZip("test_data/test_b.zip", t)
 	zip3 := openZip("test_data/test_c.zip", t)
 
-	// TODO (next): Fix failure here. It merges just two zip files without
-	// failures, but merging zip1 with a NewMergedFS will fail.
-
 	// Merge all three zip files into a single FS, with zip1 being highest
 	// priority, and zip3 being lowest priority.
 	merged := NewMergedFS(zip1, NewMergedFS(zip2, zip3))
@@ -53,10 +51,49 @@ func TestMergedFS(t *testing.T) {
 		t.FailNow()
 	}
 
-	// TODO:
-	//  - Make sure that a/test4.txt is *not* available (since a should be a
-	//    file, not a directory.
-	//  - Make sure that when opening a, IsDir() is false.
-	//  - Make sure that test1.txt is the copy from test1.zip, with a size of
-	//    2 bytes.
+	// Make sure we can't treat a as both a regular file and a directory.
+	_, e = merged.Open("a/test4.txt")
+	if e == nil {
+		t.Logf("Didn't get expected error when opening a/test4.txt. It " +
+			"shouldn't be available, since a is a regular file.\n")
+		t.FailNow()
+	}
+	t.Logf("Got expected error when opening a file in an overridden "+
+		"directory: %s", e)
+	f, e := merged.Open("a")
+	if e != nil {
+		t.Logf("Failed to open file a: %s\n", e)
+		t.FailNow()
+	}
+	stat, e := f.Stat()
+	if e != nil {
+		t.Logf("Failed to Stat() file a: %s\n", e)
+		t.FailNow()
+	}
+	if stat.IsDir() {
+		t.Logf("Expected file a to be a regular file, not a directory.\n")
+		t.Fail()
+	}
+
+	// Make sure this is the copy from test_a.zip, which should be two bytes.
+	f, e = merged.Open("test1.txt")
+	if e != nil {
+		t.Logf("Failed opening test1.txt: %s\n", e)
+		t.FailNow()
+	}
+	stat, e = f.Stat()
+	if e != nil {
+		t.Logf("Failed to Stat() test1.txt: %s\n", e)
+		t.FailNow()
+	}
+	if stat.Size() != 2 {
+		t.Logf("Expected test1.txt to be 2 bytes, got %d.\n", stat.Size())
+		t.Fail()
+	}
+	content, e := io.ReadAll(f)
+	if e != nil {
+		t.Logf("Failed reading test1.txt's content: %s", e)
+		t.FailNow()
+	}
+	t.Logf("Content of test1.txt: %s\n", string(content))
 }
