@@ -272,7 +272,7 @@ func mergeDirEntries(a, b fs.File) ([]fs.DirEntry, error) {
 
 // Creates and returns a new pseudo-directory "File" that contains the contents
 // of both files a and b. Both a and b must be directories at the same
-// specified path m.A and m.B, respectively.
+// specified path in m.A and m.B, respectively.
 func (m *MergedFS) newMergedDirectory(a, b fs.File, path string) (fs.File,
 	error) {
 	sA, e := a.Stat()
@@ -330,6 +330,9 @@ func (m *MergedFS) validatePathPrefix(path string) error {
 				m.knownOKPrefixes[path] = true
 				return nil
 			}
+			// We can't handle opening this path in A for some reason.
+			return fmt.Errorf("%w: Error opening %s in A: %s", fs.ErrNotExist,
+				path, e)
 		}
 		info, e := f.Stat()
 		if e != nil {
