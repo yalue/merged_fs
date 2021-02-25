@@ -56,7 +56,7 @@ Additional notes:
    `NewMergedFS`, then the file in the first of the two always overrides the
    file with the same name in the second FS.
 
- - Following the first point, if a directory in the second FS has the same name
+ - Following the prior point, if a directory in the second FS has the same name
    as a regular file in the first, neither the directory in the second FS nor
    any of its contents will be present in the merged FS (the regular file will
    take priority).  For example, if FS `A` contains a regular file named `a/b`,
