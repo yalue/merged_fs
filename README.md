@@ -48,6 +48,10 @@ func main() {
 
 Additional notes:
 
+ - Both underlying FS's must support the `ReadDirFile` interface when opening
+   directories.  Without this, we have no way for determining the contents of
+   merged directories.
+
  - If a file with the same name is present in both `FS`s given to
    `NewMergedFS`, then the file in the first of the two always overrides the
    file with the same name in the second FS.

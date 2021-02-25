@@ -199,11 +199,11 @@ func (s dirEntrySlice) Swap(a, b int) {
 func mergeDirEntries(a, b fs.File) ([]fs.DirEntry, error) {
 	dirA, ok := a.(fs.ReadDirFile)
 	if !ok {
-		return nil, fmt.Errorf("File A isn't a directory")
+		return nil, fmt.Errorf("Directories must implement ReadDirFile")
 	}
 	dirB, ok := b.(fs.ReadDirFile)
 	if !ok {
-		return nil, fmt.Errorf("File B isn't a directory")
+		return nil, fmt.Errorf("Directories must implement ReadDirFile")
 	}
 	entriesA, e := dirA.ReadDir(-1)
 	if e != nil {
