@@ -105,8 +105,8 @@ func (d *MergedDirectory) Read(data []byte) (int, error) {
 
 func (d *MergedDirectory) Close() error {
 	// Note: Do *not* clear the rest of the fields here, since the
-	// MergedDirectory also serves as a DirEntry or FileInfo field, which may
-	// outlive the File itself being closed.
+	// MergedDirectory also serves as a DirEntry or FileInfo, which must be
+	// able to outlive the File itself being closed.
 	d.entries = nil
 	d.readOffset = 0
 	return nil
@@ -355,7 +355,7 @@ func (m *MergedFS) validatePathPrefix(path string) error {
 // a MergedDirectory file. If it's present in both A and B, but isn't a
 // directory in both, then this will simply return the copy in A. Otherwise,
 // it returns the copy in B, so long as some prefix of the path doesn't
-// correspond to a directory in A.
+// correspond to a regular file in A.
 func (m *MergedFS) Open(path string) (fs.File, error) {
 	if !fs.ValidPath(path) {
 		return nil, &fs.PathError{"open", "path", fs.ErrInvalid}
