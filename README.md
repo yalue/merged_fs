@@ -17,6 +17,12 @@ single directory?  This library provides the means to do so: it implements the
 filesystems can even include additional `MergedFS` instances, enabling
 combining an arbitrary number of filesystems into a single `io/fs.FS`.
 
+This repository provides a roughly similar function to [laher/mergefs](https://github.com/laher/mergefs),
+but it offers one key distinction: correctly listing contents of merged
+directories present in both FS's. This adds quite a bit of complexity. However,
+laher/mergefs will be more performant for filesystems not requiring directory-
+listing capabilities.
+
 Usage
 -----
 
