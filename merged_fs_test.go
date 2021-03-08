@@ -43,6 +43,8 @@ func TestMergedFS(t *testing.T) {
 		"test3.txt",
 		"b/0.txt",
 		"b/1.txt",
+		"b",
+		"a",
 	}
 
 	e := fstest.TestFS(merged, expectedFiles...)
