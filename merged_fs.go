@@ -275,9 +275,12 @@ func mergeDirEntries(a, b fs.File) ([]fs.DirEntry, error) {
 
 // Creates and returns a new pseudo-directory "File" that contains the contents
 // of both files a and b. Both a and b must be directories at the same
-// specified path in m.A and m.B, respectively.
+// specified path in m.A and m.B, respectively. Closes files a and b before
+// returning, since they aren't needed by the MergedDirectory pseudo-file.
 func (m *MergedFS) newMergedDirectory(a, b fs.File, path string) (fs.File,
 	error) {
+	defer a.Close()
+	defer b.Close()
 	sA, e := a.Stat()
 	if e != nil {
 		return nil, fmt.Errorf("Couldn't stat dir %s from FS A: %w", path, e)
@@ -371,6 +374,7 @@ func (m *MergedFS) Open(path string) (fs.File, error) {
 	if e == nil {
 		fileInfo, e := fA.Stat()
 		if e != nil {
+			fA.Close()
 			return nil, fmt.Errorf("Couldn't stat %s in FS A: %w", path, e)
 		}
 		if !fileInfo.IsDir() {
@@ -388,20 +392,24 @@ func (m *MergedFS) Open(path string) (fs.File, error) {
 				return fA, nil
 			}
 			// Treat any non-path errors in A or B as fatal.
+			fA.Close()
 			return nil, fmt.Errorf("Couldn't open %s in FS B: %w", path, e)
 		}
 		// Check if the file in B is a directory.
 		fileInfo, e = fB.Stat()
 		if e != nil {
+			fA.Close()
+			fB.Close()
 			return nil, fmt.Errorf("Couldn't stat %s in FS B: %w", path, e)
 		}
 		if !fileInfo.IsDir() {
 			// The file wasn't a dir in B, so ignore it in favor of the dir in
 			// A.
+			fB.Close()
 			return fA, nil
 		}
 		// Finally, we know that the file is a directory in both A and B, so
-		// return a MergedDirectory.
+		// return a MergedDirectory. This takes care of closing fA and fB.
 		return m.newMergedDirectory(fA, fB, path)
 	}
 	// Return an error now if the error isn't one we'd expect from an invalid
