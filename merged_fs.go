@@ -344,6 +344,8 @@ func (m *MergedFS) validatePathPrefix(path string) error {
 				path, e)
 		}
 		info, e := f.Stat()
+		// We don't need the file handle after reading its info.
+		f.Close()
 		if e != nil {
 			return fmt.Errorf("Couldn't stat file in A: %s", e)
 		}
@@ -417,13 +419,21 @@ func (m *MergedFS) Open(path string) (fs.File, error) {
 	if !isBadPathError(e) {
 		return nil, fmt.Errorf("Couldn't open %s in FS A: %w", path, e)
 	}
+
+	// validatePathPrefix can be kind of expensive, so we'll try to open the
+	// file in m.B *first*. This prevents a possible DoS where someone requests
+	// paths that don't exist in either FS, but require checking and caching a
+	// bunch of pointless path prefixes.
+	fB, e := m.B.Open(path)
+	if e != nil {
+		return nil, e
+	}
+	// The file exists in B, so make sure a file in A doesn't override a
+	// directory in B, rendering this path unreachable.
 	e = m.validatePathPrefix(path)
 	if e != nil {
-		// A file in A overrides a directory name in B, rendering this path
-		// unreachable in the merged FS.
+		fB.Close()
 		return nil, &fs.PathError{"open", path, e}
 	}
-	// We already know the path doesn't exist in A, and isn't overshadowed by
-	// a file named the same as a directory, so try to open it in B.
-	return m.B.Open(path)
+	return fB, nil
 }
