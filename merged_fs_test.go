@@ -99,3 +99,33 @@ func TestMergedFS(t *testing.T) {
 	}
 	t.Logf("Content of test1.txt: %s\n", string(content))
 }
+
+func TestDataRace(t *testing.T) {
+	zip1 := openZip("test_data/test_a.zip", t)
+	zip2 := openZip("test_data/test_b.zip", t)
+	zip3 := openZip("test_data/test_c.zip", t)
+	merged := NewMergedFS(zip1, NewMergedFS(zip2, zip3))
+
+	// We'll use the same files as in the previous test, but here we'll try to
+	// open them all concurrently.
+	expectedFiles := []string{
+		"test1.txt",
+		"test2.txt",
+		"test3.txt",
+		"b/0.txt",
+		"b/1.txt",
+		"b",
+		"a",
+	}
+
+	for _, filename := range expectedFiles {
+		go func(name string) {
+			f, e := merged.Open(name)
+			if e != nil {
+				t.Logf("Failed opening %s: %s\n", name, e)
+				t.Fail()
+			}
+			f.Close()
+		}(filename)
+	}
+}

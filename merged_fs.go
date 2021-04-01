@@ -18,6 +18,7 @@ import (
 	"io/fs"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -35,6 +36,8 @@ type MergedFS struct {
 	// Used to speed up checks for whether a path in B is invalid due to it
 	// including a directory with the name of a non-directory file in A.
 	knownOKPrefixes map[string]bool
+	// Protects knownOKPrefixes from concurrent accesses.
+	okPrefixesMutex sync.Mutex
 }
 
 // Takes two FS instances and returns an initialized MergedFS.
@@ -312,6 +315,9 @@ func isBadPathError(e error) bool {
 // or nonexistent. Returns an error wrapping fs.ErrNotExist if any error is
 // returned.
 func (m *MergedFS) validatePathPrefix(path string) error {
+	m.okPrefixesMutex.Lock()
+	defer m.okPrefixesMutex.Unlock()
+
 	// Return immediately if we've already seen that this path is OK.
 	if m.knownOKPrefixes[path] {
 		return nil
