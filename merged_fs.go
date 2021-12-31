@@ -328,9 +328,6 @@ func (m *MergedFS) validatePathPrefix(path string) error {
 	components := strings.Split(path, "/")
 	for i := range components {
 		prefix := strings.Join(components[0:i+1], "/")
-		if m.knownOKPrefixes[path] {
-			return nil
-		}
 		f, e := m.A.Open(prefix)
 		if e != nil {
 			if isBadPathError(e) {
@@ -414,8 +411,6 @@ func (m *MergedFS) Open(path string) (fs.File, error) {
 		// return a MergedDirectory. This takes care of closing fA and fB.
 		return m.newMergedDirectory(fA, fB, path)
 	}
-	// Return an error now if the error isn't one we'd expect from an invalid
-	// path.
 	if !isBadPathError(e) {
 		return nil, fmt.Errorf("Couldn't open %s in FS A: %w", path, e)
 	}
