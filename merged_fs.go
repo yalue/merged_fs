@@ -35,7 +35,8 @@ type MergedFS struct {
 
 	// Used to speed up checks for whether a path in B is invalid due to it
 	// including a directory with the name of a non-directory file in A.
-	knownOKPrefixes map[string]bool
+	prefixCachingEnabled bool
+	knownOKPrefixes      map[string]bool
 	// Protects knownOKPrefixes from concurrent accesses.
 	okPrefixesMutex sync.Mutex
 }
@@ -43,9 +44,10 @@ type MergedFS struct {
 // Takes two FS instances and returns an initialized MergedFS.
 func NewMergedFS(a, b fs.FS) *MergedFS {
 	return &MergedFS{
-		A:               a,
-		B:               b,
-		knownOKPrefixes: make(map[string]bool),
+		A:                    a,
+		B:                    b,
+		prefixCachingEnabled: true,
+		knownOKPrefixes:      make(map[string]bool),
 	}
 }
 
@@ -313,6 +315,24 @@ func isBadPathError(e error) bool {
 	return errors.Is(e, fs.ErrNotExist) || errors.Is(e, fs.ErrInvalid)
 }
 
+// Returns true if the given prefix p is in the cache of known OK prefixes.
+// Only call this while holding m.okPrefixesMutex.
+func (m *MergedFS) checkCachedPrefix(p string) bool {
+	if !m.prefixCachingEnabled {
+		return false
+	}
+	return m.knownOKPrefixes[p]
+}
+
+// Adds a known OK prefix to the cache. Does nothing if caching is disabled.
+// Only call this while holding m.okPrefixesMutes.
+func (m *MergedFS) addPrefixToCache(p string) {
+	if !m.prefixCachingEnabled {
+		return
+	}
+	m.knownOKPrefixes[p] = true
+}
+
 // Returns an error if any prefix of the given path corresponds to a
 // non-directory in m.A. Prefix components must therefore be either directories
 // or nonexistent. Returns an error wrapping fs.ErrNotExist if any error is
@@ -322,7 +342,7 @@ func (m *MergedFS) validatePathPrefix(path string) error {
 	defer m.okPrefixesMutex.Unlock()
 
 	// Return immediately if we've already seen that this path is OK.
-	if m.knownOKPrefixes[path] {
+	if m.checkCachedPrefix(path) {
 		return nil
 	}
 	components := strings.Split(path, "/")
@@ -332,8 +352,8 @@ func (m *MergedFS) validatePathPrefix(path string) error {
 		if e != nil {
 			if isBadPathError(e) {
 				// The path doesn't conflict--it doesn't exist in A.
-				m.knownOKPrefixes[prefix] = true
-				m.knownOKPrefixes[path] = true
+				m.addPrefixToCache(prefix)
+				m.addPrefixToCache(path)
 				return nil
 			}
 			// We can't handle opening this path in A for some reason.
@@ -352,11 +372,51 @@ func (m *MergedFS) validatePathPrefix(path string) error {
 				prefix)
 		}
 		// The prefix doesn't conflict (so far)--it is a directory in A.
-		m.knownOKPrefixes[prefix] = true
+		m.addPrefixToCache(prefix)
 	}
 	// The path is a directory in A and B. (Though this should be unreachable
 	// in the current usage of the function.)
 	return nil
+}
+
+// Enables or disables path prefix caching, and clears the cache.
+//
+// I doubt most users will care about this function, but it allows working
+// around what may be an occasional bug. Explaining it, however, unfortunately
+// requires giving a few implementation details.
+//
+// First, know that this matters only if *all* of the following conditions
+// apply to your use case:
+//
+// 1) Filesystem A is something that can change during runtime, such as an
+//    os.DirFS. (It doesn't matter if filesystem B changes.)
+//
+// 2) You expect filesystem A to actually change at runtime.
+//
+// 3) You want to make sure that *adding* a regular file to A correctly
+//    prevents access to the contents of a directory in B with the same name.
+//
+// Checking whether a regular file in A has the same name as a directory in B
+// potentially requires checking every component-wise prefix of a path when
+// opening a file. To speed this up, this library uses a cache of path prefixes
+// that we know do *not* correspond to regular files in A. (This caching is
+// enabled by default.) The problem can then arise if A changes after the cache
+// already says that a path doesn't correspond to any regular files. So, if all
+// three of the above conditions apply to you, you have two choices:
+//
+// First, you can use merged_fs in conjunction with another library, such as
+// github.com/fsnotify/fsnotify to determine if the contents of FS A have
+// changed. If A has changed, then simply call merged.UsePathCaching(true)
+// to clear the cache while leaving caching enabled.
+//
+// Alternatively, call merged.UsePathCaching(false) to disable path caching
+// entirely, ensuring correctness but potentially costing performance.
+func (m *MergedFS) UsePathCaching(enabled bool) {
+	m.okPrefixesMutex.Lock()
+	defer m.okPrefixesMutex.Unlock()
+	// Clear the cache
+	m.knownOKPrefixes = make(map[string]bool)
+	m.prefixCachingEnabled = enabled
 }
 
 // If the path corresponds to a directory present in both A and B, this returns

@@ -100,6 +100,109 @@ func TestMergedFS(t *testing.T) {
 	t.Logf("Content of test1.txt: %s\n", string(content))
 }
 
+func TestPathPrefixCaching(t *testing.T) {
+	// This test makes sure that if a regular file is added to FS A, then it
+	// will correctly block a directory with the same name in FS B, so long as
+	// path prefix caching is disabled.
+	zip1 := openZip("test_data/test_a.zip", t)
+	zip2 := openZip("test_data/test_b.zip", t)
+	zip3 := openZip("test_data/test_c.zip", t)
+	merged := NewMergedFS(zip1, NewMergedFS(zip2, zip3))
+
+	// Make the merged zip files be lower priority than the test_data folder,
+	// to keep matters simple.
+	merged = NewMergedFS(os.DirFS("test_data"), merged)
+	expectedFiles := []string{
+		"test_a.zip",
+		"test_b.zip",
+		"test_c.zip",
+		"test1.txt",
+		"test2.txt",
+		"test3.txt",
+		"b/0.txt",
+		"b/1.txt",
+		"b",
+		"a",
+	}
+	e := fstest.TestFS(merged, expectedFiles...)
+	if e != nil {
+		t.Logf("TestFS failed: %s\n", e)
+		t.FailNow()
+	}
+	// A short white-box test to make sure we've cached some paths.
+	cachedCount := len(merged.knownOKPrefixes)
+	if cachedCount == 0 {
+		t.Logf("Didn't get any cached path prefixes.\n")
+		t.FailNow()
+	}
+	t.Logf("Path prefix cache after basic FS test: %d\n", cachedCount)
+
+	// Disable caching, and make sure it cleared the cache.
+	merged.UsePathCaching(false)
+	cachedCount = len(merged.knownOKPrefixes)
+	if cachedCount != 0 {
+		t.Logf("The path prefix cache wasn't cleared after disabling "+
+			"caching. Still contains %d items.\n", cachedCount)
+		t.FailNow()
+	}
+	// Make sure the regular test still works with caching off.
+	e = fstest.TestFS(merged, expectedFiles...)
+	if e != nil {
+		t.Logf("Second TestFS failed: %s\n", e)
+		t.FailNow()
+	}
+	cachedCount = len(merged.knownOKPrefixes)
+	if cachedCount != 0 {
+		t.Logf("The path prefix cache changed even though caching was "+
+			"disabled. Contains %d items.\n", cachedCount)
+		t.FailNow()
+	}
+	// Add a file to the test_data directory, with the same name as a directory
+	// in one of the zips.
+	newFile, e := os.Create("test_data/b")
+	if e != nil {
+		t.Logf("Failed creating test_data/b file: %s\n", e)
+		t.FailNow()
+	}
+	newFile.Close()
+	defer os.Remove("test_data/b")
+	// Make sure we can no longer access the contents of the "b" directory now
+	// that there's a "b" regular file.
+	_, e = merged.Open("b/0.txt")
+	if e == nil {
+		t.Logf("Didn't get expected error when accessing a directory with " +
+			"the same name as a regular file.\n")
+		t.FailNow()
+	}
+	t.Logf("Got expected error when attempting to access a directory with "+
+		"the same name as a regular file: %s\n", e)
+
+	// Finally make sure we can reenable caching, and that the FS behaves
+	// properly after the update.
+	merged.UsePathCaching(true)
+	expectedFiles = []string{
+		"test_a.zip",
+		"test_b.zip",
+		"test_c.zip",
+		"test1.txt",
+		"test2.txt",
+		"test3.txt",
+		"b",
+		"a",
+	}
+	e = fstest.TestFS(merged, expectedFiles...)
+	if e != nil {
+		t.Logf("Third TestFS failed: %s\n", e)
+		t.FailNow()
+	}
+	cachedCount = len(merged.knownOKPrefixes)
+	if cachedCount == 0 {
+		t.Logf("Didn't cache any path prefixes after reenabling caching.\n")
+		t.FailNow()
+	}
+	t.Logf("After reenabling caching: %d prefixes are cached.\n", cachedCount)
+}
+
 func TestDataRace(t *testing.T) {
 	zip1 := openZip("test_data/test_a.zip", t)
 	zip2 := openZip("test_data/test_b.zip", t)
