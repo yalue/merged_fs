@@ -389,12 +389,12 @@ func (m *MergedFS) validatePathPrefix(path string) error {
 // apply to your use case:
 //
 // 1) Filesystem A is something that can change during runtime, such as an
-//    os.DirFS. (It doesn't matter if filesystem B changes.)
+// os.DirFS. (It doesn't matter if filesystem B changes.)
 //
 // 2) You expect filesystem A to actually change at runtime.
 //
 // 3) You want to make sure that *adding* a regular file to A correctly
-//    prevents access to the contents of a directory in B with the same name.
+// prevents access to the contents of a directory in B with the same name.
 //
 // Checking whether a regular file in A has the same name as a directory in B
 // potentially requires checking every component-wise prefix of a path when
