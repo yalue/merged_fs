@@ -492,3 +492,37 @@ func (m *MergedFS) Open(path string) (fs.File, error) {
 	}
 	return fB, nil
 }
+
+// Used internally to build a balanced tree of merged filesystems. Must never
+// be called with an empty slice.
+func balancedMergeRecursive(content []fs.FS) fs.FS {
+	if len(content) == 1 {
+		return content[0]
+	}
+	if len(content) == 2 {
+		return NewMergedFS(content[0], content[1])
+	}
+	lSize := len(content) / 2
+	if (len(content) % 2) != 0 {
+		lSize++
+	}
+	left := balancedMergeRecursive(content[0:lSize])
+	right := balancedMergeRecursive(content[lSize:])
+	return NewMergedFS(left, right)
+}
+
+// Merges an arbitrary list of filesystems into a single filesystem. The first
+// filesystems are higher priority than the later filesystems, and all
+// higher-priority FS's abide by the same rules that a two-way MergedFS does.
+// For example, a directory in a lower-priority FS will not be reachable if any
+// part of its path is a regular file in *any* higher-priority FS.  For now,
+// this function simply constructs a balanced tree of MergedFS instances. In
+// the future, it may use a different underlying implementation with the same
+// semantics. Returns nil if no filesystems are provided.
+func MergeMultiple(filesystems ...fs.FS) fs.FS {
+	if len(filesystems) == 0 {
+		return nil
+	}
+	return balancedMergeRecursive(filesystems)
+}
+
