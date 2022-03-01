@@ -26,6 +26,8 @@ listing capabilities.
 Usage
 -----
 
+[Documentation on pkg.go.dev](https://pkg.go.dev/github.com/yalue/merged_fs)
+
 Simply pass two `io/fs.FS` instances to `merged_fs.NewMergedFS(...)` to obtain
 a new `FS` serving data from both.  See the following example:
 
@@ -70,4 +72,19 @@ Additional notes:
    is a directory), then `a/b/c` will not be available in the FS returned by
    `NewMergedFS(A, B)`, because the directory `b` is overridden by the regular
    file `b` in the first FS.
+
+Multi-Way Merging
+-----------------
+
+If you want to merge more than two filesystems, you can use the `MergeMultiple`
+function, which takes an arbitrary number of filesystem arguments:
+
+```go
+    merged := merged_fs.MergeMultiple(fs_1, fs_2, fs_3, fs_4)
+```
+
+The earlier arguments to `MergeMultiple` will have higher priority over the
+later filesystems, in the same way that the first argument to `NewMergedFS` has
+priority over the second. For now, the `MergeMultiple` function just provides
+a convenient wrapper for building a tree of `MergedFS` instances.
 

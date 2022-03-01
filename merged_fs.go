@@ -503,9 +503,6 @@ func balancedMergeRecursive(content []fs.FS) fs.FS {
 		return NewMergedFS(content[0], content[1])
 	}
 	lSize := len(content) / 2
-	if (len(content) % 2) != 0 {
-		lSize++
-	}
 	left := balancedMergeRecursive(content[0:lSize])
 	right := balancedMergeRecursive(content[lSize:])
 	return NewMergedFS(left, right)
