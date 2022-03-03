@@ -14,6 +14,9 @@ import (
 // This package benchmarks performance for accessing a many-way FS merge. It's
 // intended as a benchmark; run it with "go test -bench=."
 
+// test_data/many_zips.zip contains 2,048 zip files, each of which contains a
+// single .txt file. This function returns a slice of filesystems: one per zip
+// file in many_zips.zip.
 func openLargeZip(b *testing.B) []fs.FS {
 	path := "test_data/many_zips.zip"
 	f, e := os.Open(path)
@@ -83,5 +86,43 @@ func BenchmarkLargeMerge(b *testing.B) {
 		}
 		stats = nil
 		f.Close()
+	}
+}
+
+func TestEmptyMergeMultiple(t *testing.T) {
+	merged := MergeMultiple()
+	if merged == nil {
+		t.Logf("Didn't get a valid FS from MergeMultiple with no args.\n")
+		t.FailNow()
+	}
+	f, e := merged.Open("./bad.txt")
+	if e == nil {
+		t.Logf("Didn't get expected error when opening a file in empty FS.\n")
+		t.FailNow()
+	}
+	if !isBadPathError(e) {
+		t.Logf("Didn't get bad path error when opening a file in empty FS. "+
+			"Got %s instead.\n", e)
+		t.FailNow()
+	}
+	t.Logf("Got expected error from opening a file in the empty FS: %s\n", e)
+	f, e = merged.Open(".")
+	if e != nil {
+		t.Logf("Error opening \".\" in empty FS: %s\n", e)
+		t.FailNow()
+	}
+	info, e := f.Stat()
+	if e != nil {
+		t.Logf("Error getting info for \".\" in empty FS: %s\n", e)
+		t.FailNow()
+	}
+	e = f.Close()
+	if e != nil {
+		t.Logf("Error closing \".\" in empty FS: %s\n", e)
+		t.FailNow()
+	}
+	if !info.IsDir() {
+		t.Logf("\".\" in empty FS wasn't marked as a directory.\n")
+		t.FailNow()
 	}
 }

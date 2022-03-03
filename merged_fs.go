@@ -493,6 +493,22 @@ func (m *MergedFS) Open(path string) (fs.File, error) {
 	return fB, nil
 }
 
+// Implements the FS interface, but provides a filesystem containing no files.
+// The only path you can "Open" is ".", which provides an empty directory.
+type EmptyFS struct{}
+
+func (f *EmptyFS) Open(path string) (fs.File, error) {
+	if path != "." {
+		return nil, &fs.PathError{"open", path, fs.ErrNotExist}
+	}
+	// Return an empty directory for "."
+	return &MergedDirectory{
+		name:    ".",
+		mode:    0444 | fs.ModeDir,
+		entries: nil,
+	}, nil
+}
+
 // Used internally to build a balanced tree of merged filesystems. Must never
 // be called with an empty slice.
 func balancedMergeRecursive(content []fs.FS) fs.FS {
@@ -515,11 +531,11 @@ func balancedMergeRecursive(content []fs.FS) fs.FS {
 // part of its path is a regular file in *any* higher-priority FS.  For now,
 // this function simply constructs a balanced tree of MergedFS instances. In
 // the future, it may use a different underlying implementation with the same
-// semantics. Returns nil if no filesystems are provided.
+// semantics. Returns a valid empty filesystem (see the EmptyFS type) if no
+// filesystem arguments are provided.
 func MergeMultiple(filesystems ...fs.FS) fs.FS {
 	if len(filesystems) == 0 {
-		return nil
+		return &EmptyFS{}
 	}
 	return balancedMergeRecursive(filesystems)
 }
-
