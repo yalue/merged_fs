@@ -3,12 +3,12 @@
 //
 // Usage:
 //
-//    // fs1 and fs2 can be anything that supports the fs.FS interface,
-//    // including other MergedFS instances.
-//    fs1, _ := zip.NewReader(zipFile, fileSize)
-//    fs2, _ := zip.NewReader(zipFile2, file2Size)
-//    // Implements the io.FS interface, resolving conflicts in favor of fs1.
-//    merged := NewMergedFS(fs1, fs2)
+//	// fs1 and fs2 can be anything that supports the fs.FS interface,
+//	// including other MergedFS instances.
+//	fs1, _ := zip.NewReader(zipFile, fileSize)
+//	fs2, _ := zip.NewReader(zipFile2, file2Size)
+//	// Implements the io.FS interface, resolving conflicts in favor of fs1.
+//	merged := NewMergedFS(fs1, fs2)
 package merged_fs
 
 import (
@@ -348,6 +348,10 @@ func (m *MergedFS) validatePathPrefix(path string) error {
 	components := strings.Split(path, "/")
 	for i := range components {
 		prefix := strings.Join(components[0:i+1], "/")
+		if m.checkCachedPrefix(path) {
+			// We've already checked this and it's a directory or nonexistent.
+			continue
+		}
 		f, e := m.A.Open(prefix)
 		if e != nil {
 			if isBadPathError(e) {
@@ -374,8 +378,7 @@ func (m *MergedFS) validatePathPrefix(path string) error {
 		// The prefix doesn't conflict (so far)--it is a directory in A.
 		m.addPrefixToCache(prefix)
 	}
-	// The path is a directory in A and B. (Though this should be unreachable
-	// in the current usage of the function.)
+	// The path's prefix is only directories in both FS's
 	return nil
 }
 
@@ -417,6 +420,19 @@ func (m *MergedFS) UsePathCaching(enabled bool) {
 	// Clear the cache
 	m.knownOKPrefixes = make(map[string]bool)
 	m.prefixCachingEnabled = enabled
+	// If either sub-FS is a MergedFS, then set the prefix caching on it, too.
+	// Note that this is not necessarily exhaustive, for example if a MergedFS
+	// is wrapped by some other FS, it will be missed. Nonetheless, this will
+	// capture what I expect to be the most common use of nested MergedFS's:
+	// usage of MergeMultiple to produce a tree of MergedFS instances.
+	nestedMergedFS, ok := m.A.(*MergedFS)
+	if ok {
+		nestedMergedFS.UsePathCaching(enabled)
+	}
+	nestedMergedFS, ok = m.B.(*MergedFS)
+	if ok {
+		nestedMergedFS.UsePathCaching(enabled)
+	}
 }
 
 // If the path corresponds to a directory present in both A and B, this returns
