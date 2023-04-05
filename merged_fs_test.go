@@ -103,6 +103,52 @@ func TestMergedFS(t *testing.T) {
 	t.Logf("Content of test1.txt: %s\n", string(content))
 }
 
+func TestGlob(t *testing.T) {
+	zip1 := openZip("test_data/test_a.zip", t)
+	zip2 := openZip("test_data/test_b.zip", t)
+	zip3 := openZip("test_data/test_c.zip", t)
+	dir1 := os.DirFS("test_data")
+	merged := MergeMultiple(zip1, zip2, zip3, dir1)
+
+	results, e := fs.Glob(merged, "*.txt")
+	if e != nil {
+		t.Logf("Error running fs.Glob: %s\n", e)
+		t.FailNow()
+	}
+	if len(results) != 3 {
+		t.Logf("Glob *.txt produced %d results, but 3 were expected.\n",
+			len(results))
+		t.FailNow()
+	}
+	for i, r := range results {
+		t.Logf("   Glob *.txt result %d: %s\n", i+1, r)
+	}
+
+	results, e = fs.Glob(merged, "a/*")
+	if e != nil {
+		t.Logf("Error running fs.Glob for a/*: %s\n", e)
+		t.FailNow()
+	}
+	if len(results) != 0 {
+		t.Logf("Glob a/* didn't give 0 results.\n")
+		t.Fail()
+	}
+
+	results, e = fs.Glob(merged, "b/*")
+	if e != nil {
+		t.Logf("Error running fs.Glob: %s\n", e)
+		t.FailNow()
+	}
+	if len(results) != 2 {
+		t.Logf("Glob b/* produced %d results, but 2 were expected.\n",
+			len(results))
+		t.FailNow()
+	}
+	for i, r := range results {
+		t.Logf("   Glob b/* result %d: %s\n", i+1, r)
+	}
+}
+
 func TestPathPrefixCaching(t *testing.T) {
 	// This test makes sure that if a regular file is added to FS A, then it
 	// will correctly block a directory with the same name in FS B, so long as
