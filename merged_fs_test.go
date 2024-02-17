@@ -103,6 +103,52 @@ func TestMergedFS(t *testing.T) {
 	t.Logf("Content of test1.txt: %s\n", string(content))
 }
 
+func TestReadFileFS(t *testing.T) {
+	zip1 := openZip("test_data/test_a.zip", t)
+	zip2 := openZip("test_data/test_b.zip", t)
+	zip3 := openZip("test_data/test_c.zip", t)
+
+	// Merge all three zip files into a single FS, with zip1 being highest
+	// priority, and zip3 being lowest priority.
+	var m fs.FS = NewMergedFS(zip1, NewMergedFS(zip2, zip3))
+	merged, ok := m.(fs.ReadFileFS)
+	if !ok {
+		t.Errorf("Expected MergedFS to implement fs.ReadFileFS interface.")
+		return
+	}
+
+	// Make sure this is the copy from test_a.zip, which should be two bytes.
+	f, err := merged.Open("test1.txt")
+	if err != nil {
+		t.Errorf("Failed opening test1.txt: %s\n", err)
+		return
+	}
+	stat, err := f.Stat()
+	if err != nil {
+		t.Errorf("Failed to Stat() test1.txt: %s\n", err)
+		return
+	}
+	if stat.Size() != 2 {
+		t.Errorf("Expected test1.txt to be 2 bytes, got %d.\n", stat.Size())
+		return
+	}
+	content, e := io.ReadAll(f)
+	if e != nil {
+		t.Errorf("Failed reading test1.txt's content: %s", e)
+		return
+	}
+	t.Logf("Content of test1.txt: %s\n", string(content))
+	b, err := merged.ReadFile("test1.txt")
+	if err != nil {
+		t.Errorf("Failed reading test1.txt's content from ReadFile: %s", e)
+		return
+	}
+	if string(b) != string(content) {
+		t.Errorf("Contents do not match while reading test1.txt")
+		return
+	}
+}
+
 func TestGlob(t *testing.T) {
 	zip1 := openZip("test_data/test_a.zip", t)
 	zip2 := openZip("test_data/test_b.zip", t)
