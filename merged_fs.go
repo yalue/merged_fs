@@ -509,6 +509,23 @@ func (m *MergedFS) Open(path string) (fs.File, error) {
 	return fB, nil
 }
 
+// ReadFile reads the named file and returns the contents. A successful call
+// returns err == nil, not err == EOF. Because ReadFile reads the whole file, it
+// does not treat an EOF from Read as an error to be reported. This fulfills the
+// io/fs.ReadFileFS interface. https://pkg.go.dev/io/fs#ReadFileFS
+func (m *MergedFS) ReadFile(name string) ([]byte, error) {
+	f, err := m.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close() // ignore error
+
+	// NOTE: This is the easiest way to implement this, however a longer and
+	// more optimized approach is possible. Look at the stdlib
+	// implementation for os.ReadFile in golang/src/os/file.go for details.
+	return io.ReadAll(f) // shortest
+}
+
 // Implements the FS interface, but provides a filesystem containing no files.
 // The only path you can "Open" is ".", which provides an empty directory.
 type EmptyFS struct{}
